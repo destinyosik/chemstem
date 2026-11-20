@@ -279,12 +279,51 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .admin-table .admin-motivation { min-width: 230px; max-width: 360px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-status { display: inline-flex; padding: 4px 7px; border-radius: 20px; font-size: 9px; font-weight: 700; text-transform: capitalize; }
 .admin-status.active { background: #edf4e7; color: #527345; }
+.admin-status.free { background: #edf1ef; color: #607068; }
 .admin-status.suspended { background: #fff0ec; color: #9a4438; }
 .admin-access-button { padding: 6px 8px; border: 1px solid #d3ddd0; border-radius: 4px; background: transparent; color: #526b48; font-size: 10px; font-weight: 650; cursor: pointer; white-space: nowrap; }
 .admin-access-button:hover { background: #edf2e8; }
 .admin-current-account { color: #829083; font-size: 10px; white-space: nowrap; }
 .admin-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; color: #69766b; font-size: 11px; }
 .admin-pagination a { padding: 9px 12px; border: 1px solid var(--line); border-radius: 5px; background: #fcfcf8; color: #526b48; font-weight: 650; }
+.advanced-page { max-width: 1000px; }
+.advanced-section { margin-top: 44px; }
+.advanced-section h2, .admin-premium-section h2 { margin: 8px 0 15px; color: var(--ink); font-size: clamp(24px, 3vw, 32px); line-height: 1.2; letter-spacing: -.9px; font-weight: 600; }
+.advanced-section > p { color: #697670; font-size: 13px; line-height: 1.75; }
+.advanced-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 17px; }
+.advanced-card { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 8px; background: #fcfcf8; }
+.advanced-card h3 { margin: 0 0 9px; color: #2b443a; font-size: 17px; line-height: 1.4; letter-spacing: -.25px; }
+.advanced-card h4 { margin: 15px 0 7px; color: #465b4c; font-size: 12px; }
+.advanced-card > p, .roadmap-details, .advanced-list { color: #657269; font-size: 12px; line-height: 1.7; }
+.advanced-card > p { margin: 8px 0; }
+.advanced-list { display: grid; gap: 6px; margin: 9px 0 0; padding-left: 18px; }
+.advanced-list li::marker { color: #82945d; }
+.advanced-card details { margin-top: 14px; border-top: 1px solid var(--line); }
+.advanced-card summary { padding-top: 12px; color: #577345; font-size: 12px; font-weight: 680; cursor: pointer; }
+.roadmap-details > div { margin-top: 15px; }
+.advanced-disclaimer { margin-top: 14px; color: #77827a; font-size: 11px; line-height: 1.7; }
+.advanced-card .button { margin-top: 12px; }
+.creator-guidance-form { max-width: 650px; padding: 20px; border: 1px solid var(--line); border-radius: 8px; background: #fcfcf8; }
+.premium-plan-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
+.premium-plan-card { padding: 22px; border: 1px solid var(--line); border-radius: 8px; background: #fcfcf8; }
+.premium-plan-card h2 { margin: 12px 0 5px; font-size: 30px; letter-spacing: -1px; }
+.premium-plan-card > p { margin: 0 0 18px; color: #697670; font-size: 12px; }
+.premium-plan-card .auth-submit { margin-top: 12px; }
+.admin-premium-section { margin-top: 38px; }
+.admin-premium-section > p { color: #697670; font-size: 12px; line-height: 1.7; }
+.admin-premium-form { display: flex; align-items: center; gap: 6px; }
+.admin-premium-form input[type="number"] { width: 70px; min-height: 31px; padding: 4px 6px; border: 1px solid #dfe6dc; border-radius: 4px; background: white; color: var(--ink); font-size: 11px; }
+.admin-premium-form input[type="text"] { width: 130px; min-height: 31px; padding: 4px 6px; border: 1px solid #dfe6dc; border-radius: 4px; background: white; color: var(--ink); font-size: 10px; }
+.admin-payment-reference { display: block; max-width: 190px; margin-top: 4px; color: #879189; font-size: 9px; overflow-wrap: anywhere; }
+.admin-premium-form select { min-height: 31px; padding: 4px 6px; border: 1px solid #dfe6dc; border-radius: 4px; background: white; color: var(--ink); font-size: 10px; }
+.admin-content-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: #fcfcf8; }
+.admin-content-form label { display: grid; gap: 6px; color: #526158; font-size: 11px; font-weight: 650; }
+.admin-content-form label span { color: #879189; font-size: 10px; font-weight: 450; }
+.admin-content-form input, .admin-content-form textarea { width: 100%; min-height: 40px; padding: 9px 10px; border: 1px solid #dfe6dc; border-radius: 5px; background: white; color: var(--ink); font: inherit; font-size: 12px; }
+.admin-content-form textarea { resize: vertical; line-height: 1.6; }
+.admin-content-form label:nth-child(2), .admin-content-form label:has(textarea), .admin-content-form button { grid-column: 1 / -1; }
+.admin-content-form .button { justify-self: start; cursor: pointer; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 @keyframes tile-float { 0%, 100% { transform: translate(-50%, -50%) rotate(-5deg); } 50% { transform: translate(-50%, calc(-50% - 8px)) rotate(-3deg); } }
 @keyframes molecule-drift { 0%, 100% { margin-top: 0; } 50% { margin-top: -8px; } }
@@ -309,6 +348,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
   .site-footer { padding-inline: 24px; }
   .admin-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-filters label:first-child { grid-column: span 2; }
+  .advanced-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
   .page-shell { width: calc(100% - 40px); }
@@ -385,6 +425,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
   .admin-filters { grid-template-columns: 1fr; padding: 13px; }
   .admin-filters label:first-child { grid-column: auto; }
   .admin-filters .button { width: 100%; }
+  .premium-plan-grid { grid-template-columns: 1fr; }
+  .admin-content-form { grid-template-columns: 1fr; padding: 13px; }
+  .admin-content-form label, .admin-content-form button { grid-column: auto !important; }
+  .advanced-card { padding: 16px; }
 }
 @media (max-width: 380px) {
   .page-shell { width: calc(100% - 32px); }

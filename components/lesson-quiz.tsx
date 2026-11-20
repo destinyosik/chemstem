@@ -12,7 +12,7 @@ export function LessonQuiz({ questions }: LessonQuizProps) {
     () => questions.map(() => undefined),
   );
   const answeredCount = answers.filter((answer) => answer !== undefined).length;
-  const score = answers.reduce(
+  const score = answers.reduce<number>(
     (total, answer, index) => total + (answer === questions[index].answer ? 1 : 0),
     0,
   );

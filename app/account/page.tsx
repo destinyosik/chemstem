@@ -8,10 +8,8 @@ type AccountPageProps = {
 };
 
 export default async function AccountPage({ searchParams }: AccountPageProps) {
-  const [user, params] = await Promise.all([
-    requireActiveUser("/account"),
-    searchParams,
-  ]);
+  const [user, params] = await Promise.all([requireActiveUser("/account"), searchParams]);
+  const hasPremium = await isPremiumUser(user);
 
   return (
     <>
@@ -21,7 +19,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           <span className="content-kicker">Your chemstem account</span>
           <h1>Welcome back.</h1>
           <p>Signed in as {user.email ?? "chemstem member"}.</p>
-          <p>Membership: {isPremiumUser(user) ? "Premium" : "Free account"}.</p>
+          <p>Membership: {hasPremium ? "Premium" : "Free account"}.</p>
           {params.registered === "1" && (
             <p className="form-message form-success" role="status">
               Your chemist application has been submitted and your account is ready.
@@ -35,6 +33,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           <div className="content-links">
             <Link className="button button-dark" href="/#learning-paths">Continue learning</Link>
             <Link className="button button-dark" href="/jobs">Explore chemistry careers</Link>
+            {!hasPremium && <Link className="button button-dark" href="/premium">Explore Premium plans</Link>}
           </div>
         </section>
       </main>

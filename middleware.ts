@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { isAuthSessionMissingError } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseCredentials } from "./lib/supabase/env";
 
@@ -35,7 +36,7 @@ export async function middleware(request: NextRequest) {
 
   const { error } = await supabase.auth.getUser();
 
-  if (error) {
+  if (error && !isAuthSessionMissingError(error)) {
     throw new Error(`Unable to refresh the Supabase session: ${error.message}`);
   }
 

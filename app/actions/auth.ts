@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { isAuthSessionMissingError } from "@supabase/supabase-js";
 import { getSafeReturnPath } from "@/lib/navigation";
 import { getSupabaseCredentials } from "@/lib/supabase/env";
 import { createServerClient } from "@/lib/supabase/server";
@@ -187,7 +188,7 @@ export async function updatePassword(
   const supabase = await createServerClient();
   const { data, error: sessionError } = await supabase.auth.getUser();
 
-  if (sessionError) {
+  if (sessionError && !isAuthSessionMissingError(sessionError)) {
     throw new Error(`Unable to verify your password-reset session: ${sessionError.message}`);
   }
 

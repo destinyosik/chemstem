@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { User } from "@supabase/supabase-js";
+import { isAuthSessionMissingError, type User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { getSupabaseCredentials } from "./supabase/env";
 import { createReadOnlyServerClient } from "./supabase/server";
@@ -13,15 +13,26 @@ export async function getCurrentUser(): Promise<User | null> {
   const supabase = await createReadOnlyServerClient();
   const { data, error } = await supabase.auth.getUser();
 
-  if (error) {
+  if (error && !isAuthSessionMissingError(error)) {
     throw new Error(`Unable to verify the current user: ${error.message}`);
   }
 
   return data.user;
 }
 
-export function isPremiumUser(user: User | null): boolean {
-  return user?.app_metadata?.subscription_tier === "premium";
+export async function isPremiumUser(user: User | null): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  const supabase = await createReadOnlyServerClient();
+  const { data, error } = await supabase.rpc("current_user_has_premium_access");
+
+  if (error) {
+    throw new Error(`Unable to verify Premium membership: ${error.message}`);
+  }
+
+  return data === true;
 }
 
 export function isAdminUser(user: User | null): boolean {
