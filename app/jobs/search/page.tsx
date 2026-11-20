@@ -29,7 +29,7 @@ export default async function ChemistryJobSearchPage({ searchParams }: JobSearch
   if (error) {
     throw new Error(`Unable to search chemistry jobs: ${error.message}`);
   }
-  let jobs = (data ?? []) as ChemistryJob[];
+  const jobs = (data ?? []) as ChemistryJob[];
   let similarJobs: ChemistryJob[] = [];
 
   if (query && jobs.length === 0 && isChemistryCareerSearch(query)) {

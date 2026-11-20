@@ -3,6 +3,7 @@ import { updateChemistryJobs } from "@/lib/jobs/sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function isAuthorized(request: Request, secret: string): boolean {
   const authorization = request.headers.get("authorization") ?? "";

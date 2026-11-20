@@ -136,7 +136,7 @@ export default async function HomePage() {
             </article>
           </div>
 
-          <Link className="jobs-banner" href="/jobs">
+          <Link className="jobs-banner" href="/jobs?view=industries">
             <span className="jobs-icon"><AtomIcon /></span>
             <span className="jobs-copy">
               <span className="jobs-kicker">Your next chapter</span>

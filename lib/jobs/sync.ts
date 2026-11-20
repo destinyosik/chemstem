@@ -20,6 +20,25 @@ type AdzunaJob = {
 
 type AdzunaResponse = { results?: AdzunaJob[] };
 
+const adzunaCurrencies: Record<string, string> = {
+  au: "AUD",
+  at: "EUR",
+  br: "BRL",
+  ca: "CAD",
+  de: "EUR",
+  es: "EUR",
+  fr: "EUR",
+  gb: "GBP",
+  in: "INR",
+  it: "EUR",
+  nl: "EUR",
+  nz: "NZD",
+  pl: "PLN",
+  sg: "SGD",
+  us: "USD",
+  za: "ZAR",
+};
+
 type ChemistryJobRow = {
   industry_slug: string;
   title: string;
@@ -70,13 +89,14 @@ function categorize(job: AdzunaJob, fallbackSlug: string): string {
   return scores[0]?.score ? scores[0].slug : fallbackSlug;
 }
 
-function salaryLabel(job: AdzunaJob): string | null {
+function salaryLabel(job: AdzunaJob, countryCode: string): string | null {
   const min = job.salary_min;
   const max = job.salary_max;
-  if (typeof min !== "number" && typeof max !== "number") return null;
-  const formatter = new Intl.NumberFormat("en-NG", {
+  const currency = adzunaCurrencies[countryCode];
+  if ((!Number.isFinite(min) && !Number.isFinite(max)) || !currency) return null;
+  const formatter = new Intl.NumberFormat("en", {
     style: "currency",
-    currency: "NGN",
+    currency,
     maximumFractionDigits: 0,
   });
   if (typeof min === "number" && typeof max === "number") {
@@ -85,37 +105,48 @@ function salaryLabel(job: AdzunaJob): string | null {
   return `${formatter.format((min ?? max) as number)} per year`;
 }
 
-function convertAdzunaJob(job: AdzunaJob, fallbackSlug: string, discoveredAt: string): ChemistryJobRow | null {
+function convertAdzunaJob(
+  job: AdzunaJob,
+  fallbackSlug: string,
+  discoveredAt: string,
+  countryCode: string,
+): ChemistryJobRow | null {
   const id = job.id === undefined ? "" : String(job.id);
   const title = job.title?.trim();
-  const applicationUrl = job.redirect_url;
+  let applicationUrl: string | null = null;
+  if (job.redirect_url) {
+    try {
+      const url = new URL(job.redirect_url);
+      if ((url.protocol === "https:" || url.protocol === "http:") && !url.username && !url.password) {
+        applicationUrl = url.toString();
+      }
+    } catch {
+      applicationUrl = null;
+    }
+  }
   const description = job.description?.trim();
   if (
     !id ||
     !title ||
     !description ||
     !applicationUrl ||
-    !applicationUrl.startsWith("https://") ||
+    !applicationUrl ||
     !isChemistryRelated(job)
   ) {
     return null;
   }
 
-  const experience = [job.contract_type, job.contract_time].filter(Boolean).join(" · ");
-  const skills = ["chemistry", job.category?.label, job.category?.tag]
-    .filter((skill): skill is string => Boolean(skill));
-
   return {
     industry_slug: categorize(job, fallbackSlug),
     title: title.slice(0, 180),
     company_name: (job.company?.display_name || "Not disclosed").slice(0, 180),
-    location: (job.location?.display_name || "Nigeria").slice(0, 180),
+    location: (job.location?.display_name || "Not disclosed").slice(0, 180),
     description: description.slice(0, 5000),
     qualifications: "",
-    experience,
-    technical_skills: skills.slice(0, 30),
+    experience: "",
+    technical_skills: [],
     application_deadline: null,
-    salary_text: salaryLabel(job),
+    salary_text: salaryLabel(job, countryCode),
     application_url: applicationUrl,
     source_name: "adzuna",
     source_job_id: id,
@@ -126,8 +157,13 @@ function convertAdzunaJob(job: AdzunaJob, fallbackSlug: string, discoveredAt: st
   };
 }
 
-async function fetchIndustryJobs(appId: string, appKey: string, searchTerms: string): Promise<AdzunaJob[]> {
-  const url = new URL("https://api.adzuna.com/v1/api/jobs/ng/search/1");
+async function fetchIndustryJobs(
+  appId: string,
+  appKey: string,
+  countryCode: string,
+  searchTerms: string,
+): Promise<AdzunaJob[]> {
+  const url = new URL(`https://api.adzuna.com/v1/api/jobs/${countryCode}/search/1`);
   url.searchParams.set("app_id", appId);
   url.searchParams.set("app_key", appKey);
   url.searchParams.set("results_per_page", "50");
@@ -172,14 +208,15 @@ export async function updateChemistryJobs(
   const supabase = createSupabaseAdminClient();
   const appId = process.env.ADZUNA_APP_ID;
   const appKey = process.env.ADZUNA_APP_KEY;
-  if (!appId || !appKey) {
+  const countryCode = process.env.ADZUNA_COUNTRY_CODE?.toLowerCase();
+  if (!appId || !appKey || !countryCode || !/^[a-z]{2}$/.test(countryCode)) {
     const result: JobUpdateResult = {
       status: "no_source_configured",
       jobsFound: 0,
       jobsAdded: 0,
       jobsUpdated: 0,
       jobsExpired: 0,
-      message: "No job-source search ran: configure ADZUNA_APP_ID and ADZUNA_APP_KEY.",
+      message: "No job-source search ran: configure Adzuna credentials and a valid two-letter ADZUNA_COUNTRY_CODE.",
     };
     await writeLog(supabase, triggeredBy, result);
     return result;
@@ -188,9 +225,16 @@ export async function updateChemistryJobs(
   try {
     const discoveredAt = new Date().toISOString();
     const fetched: Array<{ job: AdzunaJob; fallbackSlug: string }> = [];
-    for (const industry of chemistryIndustries) {
-      const jobs = await fetchIndustryJobs(appId, appKey, industry.searchTerms);
-      fetched.push(...jobs.map((job) => ({ job, fallbackSlug: industry.slug })));
+    for (let offset = 0; offset < chemistryIndustries.length; offset += 4) {
+      const batch = chemistryIndustries.slice(offset, offset + 4);
+      const results = await Promise.all(
+        batch.map((industry) =>
+          fetchIndustryJobs(appId, appKey, countryCode, industry.searchTerms),
+        ),
+      );
+      for (let index = 0; index < batch.length; index += 1) {
+        fetched.push(...results[index].map((job) => ({ job, fallbackSlug: batch[index].slug })));
+      }
     }
 
     const unique = new Map<string, { job: AdzunaJob; fallbackSlug: string }>();
@@ -217,7 +261,7 @@ export async function updateChemistryJobs(
 
     const rows = [...unique.entries()]
       .map(([id, entry]) => {
-        const row = convertAdzunaJob(entry.job, entry.fallbackSlug, discoveredAt);
+        const row = convertAdzunaJob(entry.job, entry.fallbackSlug, discoveredAt, countryCode);
         const previous = existing.get(id);
         if (!row || previous?.status === "rejected" || previous?.status === "closed") return null;
         if (previous) row.discovered_at = previous.discovered_at;
@@ -271,6 +315,6 @@ export async function updateChemistryJobs(
       message,
     };
     await writeLog(supabase, triggeredBy, result);
-    throw error;
+    return result;
   }
 }

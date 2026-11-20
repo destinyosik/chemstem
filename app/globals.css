@@ -501,6 +501,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
   .advanced-card { padding: 16px; }
   .job-industry-dropdown { display: block; }
   .job-industry-grid { display: none; }
+  .job-industry-directory .job-industry-dropdown { display: none; }
+  .job-industry-directory .job-industry-grid { display: grid; grid-template-columns: 1fr; }
   .job-section-heading { align-items: flex-start; }
   .job-industry-row { min-height: 68px; grid-template-columns: 27px minmax(0, 1fr) 18px; gap: 8px; padding: 11px; }
   .job-industry-copy strong { font-size: 11px; }

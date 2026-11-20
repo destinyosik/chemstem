@@ -14,27 +14,38 @@ type ActiveIndustry = {
   sort_order: number;
 };
 
-export default async function JobsPage() {
-  const user = await getCurrentUser();
+type JobsPageProps = {
+  searchParams: Promise<{ view?: string }>;
+};
+
+export default async function JobsPage({ searchParams }: JobsPageProps) {
+  const [user, params] = await Promise.all([getCurrentUser(), searchParams]);
+  const showIndustryDirectory = params.view === "industries";
+  const supabaseConfigured = Boolean(getSupabaseCredentials());
+  let industryDatabaseReady = supabaseConfigured;
   let industries: ActiveIndustry[] = [...chemistryIndustries].map(({ slug, name, description }, index) => ({
     slug,
     name,
     description,
     sort_order: index + 1,
   }));
-  if (getSupabaseCredentials()) {
+  if (supabaseConfigured) {
     const supabase = await createReadOnlyServerClient();
     const { data, error } = await supabase.rpc("list_chemistry_industries");
     if (error) {
-      throw new Error(`Unable to load chemistry industries: ${error.message}`);
+      if (error.code !== "PGRST202") {
+        throw new Error(`Unable to load chemistry industries: ${error.message}`);
+      }
+      industryDatabaseReady = false;
+    } else {
+      industries = (data ?? []) as ActiveIndustry[];
     }
-    industries = (data ?? []) as ActiveIndustry[];
   }
 
   return (
     <>
       <SiteHeader user={user} />
-      <main className="content-page page-shell chemistry-jobs-page">
+      <main className={`content-page page-shell chemistry-jobs-page${showIndustryDirectory ? " job-industry-directory" : ""}`}>
         <header className="jobs-page-heading">
           <span className="content-kicker">Chemstem chemistry careers</span>
           <h1>Find your next chemistry opportunity.</h1>
@@ -42,6 +53,11 @@ export default async function JobsPage() {
         </header>
 
         <JobSearchForm action="/jobs/search" />
+        {!industryDatabaseReady && (
+          <p className="job-source-note" role="status">
+            The starter industry directory is available, but database-managed categories and job listings require the chemistry job engine migration.
+          </p>
+        )}
         {!user && (
           <p className="job-access-note">
             Industry job listings are for registered chemists. <Link href="/register?next=/jobs/listings">Create an Account as a Chemist</Link> to view opportunities.

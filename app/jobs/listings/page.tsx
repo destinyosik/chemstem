@@ -16,16 +16,23 @@ export default async function JobListingsPage({ searchParams }: JobListingsPageP
   const user = await requireActiveUser("/jobs/listings", "/register");
   const search = params.q?.trim().slice(0, 120) ?? "";
   const supabase = await createReadOnlyServerClient();
-  const { data, error } = await supabase.rpc("search_approved_chemistry_jobs", {
-    p_industry_slug: null,
-    p_query: search || null,
-    p_limit: 100,
-    p_offset: 0,
-  });
-  if (error) {
-    throw new Error(`Unable to search chemistry jobs: ${error.message}`);
+  const [
+    { data, error },
+    { data: industryData, error: industryError },
+  ] = await Promise.all([
+    supabase.rpc("search_approved_chemistry_jobs", {
+      p_industry_slug: null,
+      p_query: search || null,
+      p_limit: 100,
+      p_offset: 0,
+    }),
+    supabase.rpc("list_chemistry_industries"),
+  ]);
+  if (error || industryError) {
+    throw new Error(`Unable to load chemistry job listings: ${error?.message ?? industryError?.message}`);
   }
   const jobs = (data ?? []) as ChemistryJob[];
+  const industries = (industryData ?? []) as { slug: string; name: string }[];
 
   return (
     <>
@@ -53,7 +60,7 @@ export default async function JobListingsPage({ searchParams }: JobListingsPageP
             </div>
           )}
         </section>
-        <JobSubmissionForm />
+        <JobSubmissionForm industries={industries} />
         <div className="content-links">
           <Link className="content-back" href="/jobs"><span>←</span> Browse industries</Link>
         </div>

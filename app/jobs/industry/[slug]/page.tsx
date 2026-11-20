@@ -8,6 +8,13 @@ import { JobSubmissionForm } from "@/components/jobs/job-submission-form";
 import { requireActiveUser } from "@/lib/auth";
 import { getChemistryIndustry } from "@/lib/jobs/industries";
 import { createReadOnlyServerClient } from "@/lib/supabase/server";
+import { getSupabaseCredentials } from "@/lib/supabase/env";
+
+type ActiveIndustry = {
+  slug: string;
+  name: string;
+  description: string;
+};
 
 type IndustryJobsPageProps = {
   params: Promise<{ slug: string }>;
@@ -16,10 +23,20 @@ type IndustryJobsPageProps = {
 
 export default async function IndustryJobsPage({ params, searchParams }: IndustryJobsPageProps) {
   const [{ slug }, queryParams] = await Promise.all([params, searchParams]);
-  const industry = getChemistryIndustry(slug);
+  const user = await requireActiveUser(`/jobs/industry/${slug}`, "/register");
+  let industry: ActiveIndustry | undefined;
+  if (getSupabaseCredentials()) {
+    const supabase = await createReadOnlyServerClient();
+    const { data, error } = await supabase.rpc("list_chemistry_industries");
+    if (error) {
+      throw new Error(`Unable to load chemistry industries: ${error.message}`);
+    }
+    industry = ((data ?? []) as ActiveIndustry[]).find((item) => item.slug === slug);
+  } else {
+    industry = getChemistryIndustry(slug);
+  }
   if (!industry) notFound();
 
-  const user = await requireActiveUser(`/jobs/industry/${slug}`, "/register");
   const query = queryParams.q?.trim().slice(0, 120) ?? "";
   const supabase = await createReadOnlyServerClient();
   const { data, error } = await supabase.rpc("search_approved_chemistry_jobs", {

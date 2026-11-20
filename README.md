@@ -17,6 +17,8 @@ Apply `supabase/migrations/20261117000000_chemist_applications.sql` to the dedic
 
 Apply `supabase/migrations/20261120000000_advanced_premium_platform.sql` after the chemist-applications migration to enable Premium memberships, professional development content, creator guidance requests, and admin course/opportunity management.
 
+Apply `supabase/migrations/20261121000000_chemistry_job_engine.sql` after the Premium migration to enable the private job directory, 11 managed industry categories, member job suggestions, administrator moderation, and update logs. Run the database security tests with `supabase test db` after applying the migrations.
+
 Registration creates the auth user and the database trigger stores the required name, university, and motivation response. The application table has RLS enabled, no `anon` privileges, and an admin-only select policy. Registration inserts happen in a database trigger; users cannot read or edit application records through the public Data API. Admin search and access changes use database functions that independently verify the authenticated user's `app_metadata.role` claim.
 
 To authorize an administrator, set `app_metadata.role` to `admin` for that user's Supabase Auth record through a trusted server-side Admin API operation. Never set admin roles from signup/user metadata, and never expose a service-role key to the browser. Account suspension is enforced by server-side checks on member routes.
@@ -38,6 +40,14 @@ Paystack hosted checkout is used for Nigerian payments. Configure `PAYSTACK_SECR
 Paystack must approve and configure your merchant account and settlement bank details for payouts. Use test secret keys and test transactions until the webhook flow is verified; switch to live keys only after production onboarding. Add these secrets to Vercel's project environment settings for Production and Preview as appropriate. For local webhook testing, use Paystack's documented webhook forwarding tooling.
 
 The `/admin/premium` page is restricted to accounts with trusted `app_metadata.role = admin`. It can grant explicitly labeled manual access, revoke access, publish paid courses and chemistry vacancies, and update creator-request status. Manual grants do not alter payment records or claim a payment occurred.
+
+## Chemistry job search and daily updates
+
+The public `/jobs` page shows the managed 11-industry directory; job listings require an active chemstem account. Members can submit opportunities for admin review, while admins can approve or reject submissions, manage industry descriptions, add verified jobs, and inspect update logs at `/admin/jobs`. Direct table access to job records and update logs is revoked; server-rendered searches and admin views use database functions that check the caller's access.
+
+Daily imports use the Adzuna Jobs API, which requires an Adzuna app ID and key from its developer portal. Set `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and `ADZUNA_COUNTRY_CODE` to a two-letter Adzuna-supported country code in `.env.local` and Vercel. Adzuna country availability is provider-controlled; verify that its API supports the target market before configuring it. The source is not considered connected until all three values are set. Without them, the update log explicitly records `no_source_configured` and no job search is claimed. Imported jobs retain their first discovery date, link to Adzuna's original application redirect, and expire after 30 days unless refreshed. Adzuna returns description excerpts, not always full job descriptions; the original listing remains the source of complete details. Qualification and experience fields are left undisclosed unless a source explicitly provides them.
+
+Set `CRON_SECRET` to a long random value in the local and Vercel server environments. `vercel.json` schedules `/api/cron/chemistry-jobs` at 23:00 UTC every day (00:00 West Africa Time). Vercel sends this secret as a bearer token; the route rejects unauthenticated requests. Vercel Cron is available only on supported deployment plans. The admin can also trigger a manual update, which uses the same server-only credentials and logs the outcome. Never prefix these secrets with `NEXT_PUBLIC_`.
 
 ## Access model
 
@@ -64,4 +74,4 @@ Create a separate Supabase project and a separate Vercel project for chemstem. S
 - `app/admin/premium/` — Private subscription, course, opportunity, and guidance-request management.
 - `supabase/migrations/` — Private application schema, RLS policy, triggers, and protected RPCs.
 - `middleware.ts` — Supabase session refresh for server-rendered routes.
-- `.env.example` — Public Supabase and site URL variable names; never commit real credentials.
+- `.env.example` — Placeholder names for public Supabase configuration and private payment, job-source, cron, and database credentials; never commit real credentials.

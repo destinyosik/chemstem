@@ -9,7 +9,6 @@ import {
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { isAdminUser, requireActiveUser } from "@/lib/auth";
-import { chemistryIndustries } from "@/lib/jobs/industries";
 import { createReadOnlyServerClient } from "@/lib/supabase/server";
 
 type AdminJob = {
@@ -104,7 +103,10 @@ export default async function AdminJobsPage({ searchParams }: AdminJobsPageProps
           {params.update === "success" && (
             <p className="form-message form-success" role="status">The connected job source was searched and the result was logged.</p>
           )}
-          <p>Daily schedule: midnight West Africa Time. The system currently imports only when Adzuna API credentials are configured; otherwise it logs that no source search ran.</p>
+          {params.update === "failed" && (
+            <p className="form-message form-error" role="alert">The connected job source update failed. Review the update log for details.</p>
+          )}
+          <p>Daily schedule: midnight West Africa Time. Configure Adzuna API credentials and a country code supported by Adzuna; otherwise, the system logs that no source search ran.</p>
           <form action={triggerManualJobUpdate}>
             <button className="button button-dark" type="submit">Run source update now</button>
           </form>

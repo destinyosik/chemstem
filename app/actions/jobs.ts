@@ -10,23 +10,15 @@ export type JobFormState = {
   message?: string;
 };
 
-function getText(formData: FormData, name: string, label: string, maxLength: number): string {
-  const value = String(formData.get(name) ?? "").trim();
-  if (!value || value.length > maxLength) {
-    throw new Error(`${label} is required and must be ${maxLength} characters or fewer.`);
-  }
-  return value;
-}
-
-function parseSkills(formData: FormData): string[] {
+function parseSkills(formData: FormData): { skills?: string[]; error?: string } {
   const skills = String(formData.get("technical_skills") ?? "")
     .split(",")
     .map((skill) => skill.trim())
     .filter(Boolean);
   if (skills.length > 30 || skills.some((skill) => skill.length > 120)) {
-    throw new Error("Provide up to 30 technical skills, each 120 characters or fewer.");
+    return { error: "Provide up to 30 technical skills, each 120 characters or fewer." };
   }
-  return [...new Set(skills)];
+  return { skills: [...new Set(skills)] };
 }
 
 function validateHttpsUrl(value: string): string {
@@ -63,7 +55,7 @@ export async function submitChemistryJob(
     return { error: "Select one of the chemistry industries." };
   }
 
-  const user = await requireActiveUser(`/jobs/industry/${industrySlug}`);
+  await requireActiveUser(`/jobs/industry/${industrySlug}`);
   const title = String(formData.get("title") ?? "").trim();
   const companyName = String(formData.get("company_name") ?? "").trim();
   const location = String(formData.get("location") ?? "").trim();
@@ -76,6 +68,9 @@ export async function submitChemistryJob(
   }
 
   const applicationUrl = String(formData.get("application_url") ?? "").trim();
+  if (applicationUrl.length > 2048) {
+    return { error: "The application link must be 2048 characters or fewer." };
+  }
   let validatedUrl: string;
   try {
     validatedUrl = validateHttpsUrl(applicationUrl);
@@ -97,6 +92,9 @@ export async function submitChemistryJob(
     return { error: error instanceof Error ? error.message : "The deadline is invalid." };
   }
 
+  const parsedSkills = parseSkills(formData);
+  if (parsedSkills.error) return { error: parsedSkills.error };
+
   const supabase = await createServerClient();
   const { error } = await supabase.rpc("submit_chemistry_job", {
     p_industry_slug: industrySlug,
@@ -106,13 +104,14 @@ export async function submitChemistryJob(
     p_description: description,
     p_qualifications: qualifications,
     p_experience: experience,
-    p_technical_skills: parseSkills(formData),
+    p_technical_skills: parsedSkills.skills ?? [],
     p_application_deadline: deadline,
     p_salary_text: salaryText || null,
     p_application_url: validatedUrl,
   });
   if (error) {
-    throw new Error(`Unable to submit the chemistry job for review: ${error.message}`);
+    console.error("Chemistry job submission failed:", error.message);
+    return { error: "Unable to submit this job for review right now. Please try again later." };
   }
 
   revalidatePath("/admin/jobs");

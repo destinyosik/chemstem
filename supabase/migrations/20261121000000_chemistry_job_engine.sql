@@ -32,7 +32,7 @@ create table public.chemistry_jobs (
   technical_skills text[] not null default '{}',
   application_deadline date,
   salary_text text,
-  application_url text not null check (application_url ~ '^https://'),
+  application_url text not null check (application_url ~ '^https?://'),
   source_name text not null,
   source_job_id text,
   source_url text,
@@ -43,7 +43,7 @@ create table public.chemistry_jobs (
   submitted_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check (source_url is null or source_url ~ '^https://'),
+  check (source_url is null or source_url ~ '^https?://'),
   unique (source_name, source_job_id)
 );
 

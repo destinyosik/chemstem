@@ -6,7 +6,17 @@ import { chemistryIndustries } from "@/lib/jobs/industries";
 
 const initialState: JobFormState = {};
 
-export function JobSubmissionForm({ industrySlug }: { industrySlug?: string }) {
+type JobIndustryOption = {
+  slug: string;
+  name: string;
+};
+
+type JobSubmissionFormProps = {
+  industrySlug?: string;
+  industries?: readonly JobIndustryOption[];
+};
+
+export function JobSubmissionForm({ industrySlug, industries = chemistryIndustries }: JobSubmissionFormProps) {
   const [state, formAction, isPending] = useActionState(submitChemistryJob, initialState);
 
   return (
@@ -20,7 +30,7 @@ export function JobSubmissionForm({ industrySlug }: { industrySlug?: string }) {
             Industry
             <select name="industry_slug" required defaultValue="">
               <option disabled value="">Choose an industry</option>
-              {chemistryIndustries.map((industry) => (
+              {industries.map((industry) => (
                 <option key={industry.slug} value={industry.slug}>{industry.name}</option>
               ))}
             </select>
