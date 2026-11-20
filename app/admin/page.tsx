@@ -117,6 +117,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           <span className="content-kicker">Private administration</span>
           <h1>Chemist applications</h1>
           <p>Personal application data is visible only to authorized chemstem administrators.</p>
+          <Link className="content-back" href="/admin/jobs">Manage chemistry job engine →</Link>
           <Link className="content-back" href="/admin/premium">Manage Premium platform →</Link>
         </header>
 

@@ -46,11 +46,9 @@ export function SiteHeader({ user }: SiteHeaderProps) {
           )}
         </div>
 
-        {user && (
-          <Link className="mobile-job-search" href="/jobs" aria-label="Search chemistry jobs">
-            <SearchIcon />
-          </Link>
-        )}
+        <Link className="mobile-job-search" href="/jobs" aria-label="Search chemistry jobs">
+          <SearchIcon />
+        </Link>
 
         <details className="mobile-menu">
           <summary aria-label="Open navigation menu">
