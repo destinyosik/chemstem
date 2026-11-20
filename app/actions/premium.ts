@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { requireActiveUser } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export type PremiumFormState = {
   error?: string;
@@ -20,21 +21,6 @@ type PaystackInitializationResponse = {
   message?: string;
   data?: { authorization_url?: string };
 };
-
-function getSiteOrigin(): string {
-  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL;
-
-  if (!configuredUrl) {
-    throw new Error("Set NEXT_PUBLIC_SITE_URL before accepting subscription payments.");
-  }
-
-  const url = new URL(configuredUrl);
-  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
-    throw new Error("Production payment callbacks must use HTTPS.");
-  }
-
-  return url.origin;
-}
 
 export async function startPremiumCheckout(
   _previousState: PremiumFormState,

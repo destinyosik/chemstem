@@ -13,7 +13,7 @@ The public homepage and beginner lessons work without Supabase credentials. Auth
 
 ## Supabase setup
 
-Apply `supabase/migrations/20261117000000_chemist_applications.sql` to the dedicated Supabase project, using the Supabase CLI or SQL editor. Configure the Auth site URL and allow the `/auth/callback` redirect for each deployment URL, including local development and Vercel preview/production URLs. Use the same origin for `NEXT_PUBLIC_SITE_URL`.
+Apply `supabase/migrations/20261117000000_chemist_applications.sql` to the dedicated Supabase project, using the Supabase CLI or SQL editor. Configure the Supabase Auth site URL and allow the `/auth/callback` redirect for each deployment URL, including local development and Vercel preview/production URLs. Set the private server-side `SITE_URL` environment variable to the site origin.
 
 Apply `supabase/migrations/20261120000000_advanced_premium_platform.sql` after the chemist-applications migration to enable Premium memberships, professional development content, creator guidance requests, and admin course/opportunity management.
 
@@ -23,7 +23,7 @@ Registration creates the auth user and the database trigger stores the required 
 
 To authorize an administrator, set `app_metadata.role` to `admin` for that user's Supabase Auth record through a trusted server-side Admin API operation. Never set admin roles from signup/user metadata, and never expose a service-role key to the browser. Account suspension is enforced by server-side checks on member routes.
 
-Password reset and signup confirmation use the `/auth/callback` route. Supabase Auth rate limits and email delivery settings should be configured for production.
+Password reset uses the `/auth/callback` route and the server-side `SITE_URL`. Registration does not need an email confirmation redirect; set email confirmations off in Supabase Auth when immediate access after registration is required. Supabase Auth rate limits and email delivery settings should be configured for production.
 
 ## Prisma and Supabase Postgres
 
@@ -35,7 +35,7 @@ The existing Supabase Auth and application security policies remain managed by t
 
 The Advanced section is gated by a database entitlement check, not browser metadata. The starter Premium plans are ₦2,000 for 30 days and ₦21,000 for 365 days. Renewal starts another hosted checkout; access expiry is extended from the latest active paid expiry. Course and specialist-job records, membership payment history, manual admin grants, and creator guidance requests are private tables exposed only through access-checked database functions.
 
-Paystack hosted checkout is used for Nigerian payments. Configure `PAYSTACK_SECRET_KEY` and `SUPABASE_SERVICE_ROLE_KEY` only as private server environment variables (never with a `NEXT_PUBLIC_` prefix). Set `NEXT_PUBLIC_SITE_URL` to the exact HTTPS deployment origin. In Paystack's dashboard, add the webhook URL `https://<your-domain>/api/webhooks/paystack` and subscribe to the `charge.success` and `charge.failed` events. The webhook verifies Paystack's signature and then independently verifies the transaction with Paystack before its service-role-only database function can change payment state. Only verified successful payments can activate access. The browser return URL only displays database status; it cannot grant membership.
+Paystack hosted checkout is used for Nigerian payments. Configure `PAYSTACK_SECRET_KEY` and `SUPABASE_SERVICE_ROLE_KEY` only as private server environment variables (never with a `NEXT_PUBLIC_` prefix). Set `SITE_URL` to the exact HTTPS deployment origin. In Paystack's dashboard, add the webhook URL `https://<your-domain>/api/webhooks/paystack` and subscribe to the `charge.success` and `charge.failed` events. The webhook verifies Paystack's signature and then independently verifies the transaction with Paystack before its service-role-only database function can change payment state. Only verified successful payments can activate access. The browser return URL only displays database status; it cannot grant membership.
 
 Paystack must approve and configure your merchant account and settlement bank details for payouts. Use test secret keys and test transactions until the webhook flow is verified; switch to live keys only after production onboarding. Add these secrets to Vercel's project environment settings for Production and Preview as appropriate. For local webhook testing, use Paystack's documented webhook forwarding tooling.
 
@@ -60,7 +60,7 @@ The 20 beginner lessons use original explanations and link to OpenStax Chemistry
 
 ## Deploy independently
 
-Create a separate Supabase project and a separate Vercel project for chemstem. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `NEXT_PUBLIC_SITE_URL` in the Vercel project's environment settings. The legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` is also supported. Vercel detects and builds the Next.js app automatically. No DestinyTech configuration or credentials are used.
+Create a separate Supabase project and a separate Vercel project for chemstem. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and private server-side `SITE_URL=https://chemstem.vercel.app` in the Vercel project's environment settings. The legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` is also supported. Vercel detects and builds the Next.js app automatically. No DestinyTech configuration or credentials are used.
 
 ## Project structure
 

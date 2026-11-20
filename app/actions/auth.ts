@@ -7,6 +7,7 @@ import { getSupabaseCredentials } from "@/lib/supabase/env";
 import { createServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendNewRequestEmail } from "@/lib/email";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export type AuthFormState = {
   error?: string;
@@ -24,32 +25,13 @@ function getCredentialsError(): AuthFormState | null {
   };
 }
 
-function getSiteOrigin(): string | null {
-  const configuredUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.NODE_ENV === "production" ? null : "http://localhost:3000");
-
-  if (!configuredUrl) {
-    return null;
-  }
-
-  try {
-    const url = new URL(configuredUrl);
-    if (!["http:", "https:"].includes(url.protocol)) return null;
-    if (process.env.NODE_ENV === "production" && url.protocol !== "https:") return null;
-    return url.origin;
-  } catch {
-    return null;
-  }
-}
-
 function buildAuthCallback(siteOrigin: string, destination: string): string {
   const callback = new URL("/auth/callback", siteOrigin);
   callback.searchParams.set("next", destination);
   return callback.toString();
 }
 
-function addRegistrationConfirmation(path: string): string {
+function addRegistrationNotice(path: string): string {
   const destination = new URL(path, "http://localhost");
   destination.searchParams.set("registered", "1");
   return `${destination.pathname}${destination.search}${destination.hash}`;
@@ -121,22 +103,14 @@ export async function register(
     return { error: "Your password must be at least 8 characters long." };
   }
 
-  const siteOrigin = getSiteOrigin();
-  if (!siteOrigin) {
-    return {
-      error: "Password and email confirmation links need a valid NEXT_PUBLIC_SITE_URL.",
-    };
-  }
-
   const returnPath = getSafeReturnPath(formData.get("next"), "/account");
-  const confirmedPath = addRegistrationConfirmation(returnPath);
+  const registeredPath = addRegistrationNotice(returnPath);
   const supabase = await createServerClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name: fullName, username, university, motivation },
-      emailRedirectTo: buildAuthCallback(siteOrigin, confirmedPath),
     },
   });
 
@@ -200,7 +174,7 @@ export async function register(
     };
   }
 
-  redirect(confirmedPath);
+  redirect(registeredPath);
 }
 
 export async function requestPasswordReset(
@@ -213,14 +187,9 @@ export async function requestPasswordReset(
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Enter the email address for your account." };
 
-  const siteOrigin = getSiteOrigin();
-  if (!siteOrigin) {
-    return { error: "Password reset needs a valid NEXT_PUBLIC_SITE_URL." };
-  }
-
   const supabase = await createServerClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: buildAuthCallback(siteOrigin, "/reset-password"),
+    redirectTo: buildAuthCallback(getSiteOrigin(), "/reset-password"),
   });
 
   if (error) {

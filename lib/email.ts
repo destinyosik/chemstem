@@ -1,5 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export type ChemistRequestEmailDetails = {
   requestId: string;
@@ -28,7 +29,7 @@ export async function sendNewRequestEmail(details: ChemistRequestEmailDetails): 
 
   const adminEmail =
     process.env.ADMIN_NOTIFICATION_EMAIL || "destinyosik2007@gmail.com";
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://chemstem.vercel.app").replace(/\/$/, "");
+  const siteUrl = getSiteOrigin();
   const { error } = await resend.emails.send({
     from: "Chemstem <onboarding@resend.dev>",
     to: adminEmail,
@@ -54,7 +55,7 @@ export async function sendRequestDecisionEmail(
   const resend = getResend();
   if (!resend) return;
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://chemstem.vercel.app").replace(/\/$/, "");
+  const siteUrl = getSiteOrigin();
   const { error } = await resend.emails.send({
     from: "Chemstem <onboarding@resend.dev>",
     to: details.email,
