@@ -39,6 +39,16 @@ export function isAdminUser(user: User | null): boolean {
   return user?.app_metadata?.role === "admin";
 }
 
+export async function requireSessionUser(
+  returnTo: string,
+): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent(returnTo)}`);
+  }
+  return user;
+}
+
 export async function requireActiveUser(
   returnTo: string,
   unauthenticatedPage: "/login" | "/register" = "/login",
@@ -50,6 +60,22 @@ export async function requireActiveUser(
   }
 
   const supabase = await createReadOnlyServerClient();
+  const { data: requestStatus, error: requestError } = await supabase.rpc(
+    "current_user_request_status",
+  );
+
+  if (requestError) {
+    throw new Error(`Unable to verify your account request: ${requestError.message}`);
+  }
+
+  if (requestStatus === "pending") {
+    redirect("/account?status=pending");
+  }
+
+  if (requestStatus === "rejected") {
+    redirect("/account?status=rejected");
+  }
+
   const { data: status, error } = await supabase.rpc("current_user_access_status");
 
   if (error) {

@@ -27,6 +27,20 @@ export function AuthForm({ mode, nextPath = "" }: AuthFormProps) {
             <input autoComplete="name" maxLength={120} name="full_name" required type="text" />
           </label>
           <label>
+            Username
+            <input
+              autoCapitalize="none"
+              autoComplete="username"
+              maxLength={30}
+              minLength={3}
+              name="username"
+              pattern="[a-zA-Z0-9_]{3,30}"
+              placeholder="e.g. chemstudent"
+              required
+              type="text"
+            />
+          </label>
+          <label>
             Email address
             <input autoComplete="email" name="email" placeholder="you@example.com" required type="email" />
           </label>

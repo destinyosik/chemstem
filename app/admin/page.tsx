@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { setChemistAccess } from "@/app/actions/admin";
+import { reviewChemistRequest, setChemistAccess } from "@/app/actions/admin";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { isAdminUser, requireActiveUser } from "@/lib/auth";
@@ -26,6 +26,8 @@ type ChemistApplication = {
   motivation: string;
   access_status: "active" | "suspended";
   created_at: string;
+  username: string;
+  request_status: "pending" | "approved" | "rejected";
 };
 
 function validDate(value?: string): string | null {
@@ -177,6 +179,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                   <tr key={application.user_id}>
                     <td>
                       <strong>{application.full_name}</strong>
+                      <span className="admin-email">@{application.username}</span>
                       <a className="admin-email" href={`mailto:${application.email}`}>{application.email}</a>
                     </td>
                     <td>{application.university}</td>
@@ -188,7 +191,20 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                       </span>
                     </td>
                     <td>
-                      {application.user_id === user.id ? (
+                      {application.request_status === "pending" ? (
+                        <div className="admin-request-actions">
+                          <form action={reviewChemistRequest}>
+                            <input name="user_id" type="hidden" value={application.user_id} />
+                            <button className="admin-access-button" name="decision" type="submit" value="approved">Approve</button>
+                          </form>
+                          <form action={reviewChemistRequest}>
+                            <input name="user_id" type="hidden" value={application.user_id} />
+                            <button className="admin-access-button" name="decision" type="submit" value="rejected">Reject</button>
+                          </form>
+                        </div>
+                      ) : application.request_status === "rejected" ? (
+                        <span className="admin-status suspended">Rejected</span>
+                      ) : application.user_id === user.id ? (
                         <span className="admin-current-account">Your account</span>
                       ) : (
                         <form action={setChemistAccess}>
