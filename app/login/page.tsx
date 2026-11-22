@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/auth-form";
+import { GoogleSignInForm } from "@/components/google-sign-in-form";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getCurrentUser } from "@/lib/auth";
@@ -31,7 +32,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               That email link is invalid or expired. Request a new password reset or confirmation email.
             </p>
           )}
+          {params.error === "google" && (
+            <p className="form-message form-error" role="alert">
+              Google sign-in could not start. Enable Google in Supabase Auth and verify the provider callback and site redirect URLs.
+            </p>
+          )}
           <AuthForm mode="login" nextPath={nextPath} />
+          <GoogleSignInForm from="login" nextPath={nextPath} />
           <Link className="content-back" href="/"><span>←</span> Back to home</Link>
         </section>
       </main>

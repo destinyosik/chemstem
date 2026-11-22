@@ -1,13 +1,16 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { isAuthSessionMissingError } from "@supabase/supabase-js";
+import { requireSessionUser } from "@/lib/auth";
 import { getSafeReturnPath } from "@/lib/navigation";
 import { getSupabaseCredentials } from "@/lib/supabase/env";
 import { createServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendNewRequestEmail } from "@/lib/email";
 import { getSiteOrigin } from "@/lib/site-url";
+import { isMissingSupabaseRpc } from "@/lib/supabase/errors";
 
 export type AuthFormState = {
   error?: string;
@@ -105,16 +108,35 @@ export async function register(
 
   const returnPath = getSafeReturnPath(formData.get("next"), "/account");
   const registeredPath = addRegistrationNotice(returnPath);
+  let emailRedirectTo: string;
+  try {
+    emailRedirectTo = buildAuthCallback(getSiteOrigin(), registeredPath);
+  } catch (error) {
+    console.error(
+      "Unable to build the Supabase email-confirmation callback:",
+      error instanceof Error ? error.message : "Invalid site URL configuration.",
+    );
+    return {
+      error: "Account registration is temporarily unavailable. Please contact support.",
+    };
+  }
+
   const supabase = await createServerClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name: fullName, username, university, motivation },
+      emailRedirectTo,
     },
   });
 
   if (error) {
+    if (/redirect.*(not allowed|allow list)|not allowed.*redirect/i.test(error.message)) {
+      return {
+        error: "Supabase rejected the confirmation URL. Add NEXT_PUBLIC_SITE_URL and its /auth/callback route to the Supabase Auth redirect allow list.",
+      };
+    }
     return { error: `Unable to create your account: ${error.message}` };
   }
 
@@ -236,6 +258,39 @@ export async function updatePassword(
   }
 
   redirect("/account?passwordUpdated=1");
+}
+
+export async function completeChemistProfile(
+  _previousState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  await requireSessionUser("/account");
+
+  const university = String(formData.get("university") ?? "").trim();
+  const motivation = String(formData.get("motivation") ?? "").trim();
+  if (!university || university.length > 200) {
+    return { error: "Enter a university or institution (up to 200 characters)." };
+  }
+  if (!motivation || motivation.length > 500) {
+    return { error: "Share 1 to 500 characters about your chemistry journey." };
+  }
+
+  const supabase = await createServerClient();
+  const { error } = await supabase.rpc("update_current_chemist_profile", {
+    p_university: university,
+    p_motivation: motivation,
+  });
+  if (error) {
+    if (isMissingSupabaseRpc(error)) {
+      return {
+        error: "Profile completion is unavailable until the latest Supabase migration has been applied.",
+      };
+    }
+    return { error: `Unable to update your profile: ${error.message}` };
+  }
+
+  revalidatePath("/account");
+  redirect("/account?profileUpdated=1");
 }
 
 export async function signOut(): Promise<void> {

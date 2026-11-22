@@ -6,9 +6,14 @@ import { JobSearchForm } from "@/components/jobs/job-search-form";
 import { JobCard, type ChemistryJob } from "@/components/jobs/job-card";
 import { JobSubmissionForm } from "@/components/jobs/job-submission-form";
 import { requireActiveUser } from "@/lib/auth";
-import { getChemistryIndustry } from "@/lib/jobs/industries";
+import {
+  getChemistryIndustry,
+  isChemistryCareerSearch,
+} from "@/lib/jobs/industries";
+import { searchAdzunaChemistryJobs } from "@/lib/jobs/sync";
 import { createReadOnlyServerClient } from "@/lib/supabase/server";
 import { getSupabaseCredentials } from "@/lib/supabase/env";
+import { isMissingSupabaseRpc } from "@/lib/supabase/errors";
 
 type ActiveIndustry = {
   slug: string;
@@ -28,10 +33,14 @@ export default async function IndustryJobsPage({ params, searchParams }: Industr
   if (getSupabaseCredentials()) {
     const supabase = await createReadOnlyServerClient();
     const { data, error } = await supabase.rpc("list_chemistry_industries");
-    if (error) {
+    if (error && !isMissingSupabaseRpc(error)) {
       throw new Error(`Unable to load chemistry industries: ${error.message}`);
     }
-    industry = ((data ?? []) as ActiveIndustry[]).find((item) => item.slug === slug);
+    if (error) {
+      industry = getChemistryIndustry(slug);
+    } else {
+      industry = ((data ?? []) as ActiveIndustry[]).find((item) => item.slug === slug);
+    }
   } else {
     industry = getChemistryIndustry(slug);
   }
@@ -39,16 +48,29 @@ export default async function IndustryJobsPage({ params, searchParams }: Industr
 
   const query = queryParams.q?.trim().slice(0, 120) ?? "";
   const supabase = await createReadOnlyServerClient();
-  const { data, error } = await supabase.rpc("search_approved_chemistry_jobs", {
-    p_industry_slug: slug,
-    p_query: query || null,
-    p_limit: 100,
-    p_offset: 0,
-  });
-  if (error) {
+  const [{ data, error }, liveResult] = await Promise.all([
+    supabase.rpc("search_approved_chemistry_jobs", {
+      p_industry_slug: slug,
+      p_query: query || null,
+      p_limit: 100,
+      p_offset: 0,
+    }),
+    query && isChemistryCareerSearch(query)
+      ? searchAdzunaChemistryJobs(query)
+      : Promise.resolve(null),
+  ]);
+  if (error && !isMissingSupabaseRpc(error)) {
     throw new Error(`Unable to load ${industry.name} jobs: ${error.message}`);
   }
-  const jobs = (data ?? []) as ChemistryJob[];
+  const databaseSearchAvailable = !error;
+  const searchAvailable = databaseSearchAvailable || liveResult?.status === "success";
+  const databaseJobs = (data ?? []) as ChemistryJob[];
+  const liveJobs = (liveResult?.jobs ?? []).filter((job) => job.industry_slug === slug);
+  const liveJobUrls = new Set(liveJobs.map((job) => job.application_url));
+  const jobs = [
+    ...liveJobs,
+    ...databaseJobs.filter((job) => !liveJobUrls.has(job.application_url)),
+  ];
 
   return (
     <>
@@ -63,14 +85,39 @@ export default async function IndustryJobsPage({ params, searchParams }: Industr
           <p>{industry.description} Listings link directly to the original application source.</p>
         </header>
         <JobSearchForm action={`/jobs/industry/${slug}`} defaultValue={query} />
+        {liveResult && (
+          <p className="job-source-note" role="status">
+            {liveResult.message}
+          </p>
+        )}
+        {!searchAvailable && (
+          <p className="job-source-note" role="status">
+            Stored industry job listings are unavailable until an administrator applies the chemistry job engine migration. No listings are being simulated.
+          </p>
+        )}
+        {!databaseSearchAvailable && liveResult?.status === "success" && (
+          <p className="job-source-note" role="status">
+            These are live Adzuna results. Saved and admin-approved listings will be available after the job database migration is applied.
+          </p>
+        )}
         <section className="job-results-section">
           <div className="job-results-heading">
             <h2>{query ? `Results for “${query}”` : "Newest opportunities"}</h2>
             <span>{jobs.length} {jobs.length === 1 ? "job" : "jobs"}</span>
           </div>
-          {jobs.length ? (
+          {query && !isChemistryCareerSearch(query) ? (
+            <div className="job-empty-state job-search-error" role="status">
+              <h3>Search outside chemistry</h3>
+              <p>Sorry, this search is outside our chemistry career categories. Please try a related chemistry position.</p>
+            </div>
+          ) : jobs.length ? (
             <div className="job-results-list">
               {jobs.map((job) => <JobCard job={job} key={job.id} />)}
+            </div>
+          ) : !searchAvailable ? (
+            <div className="job-empty-state">
+              <h3>Job search is being connected</h3>
+              <p>Approved listings will appear here after the job database is installed.</p>
             </div>
           ) : (
             <div className="job-empty-state">
@@ -79,7 +126,7 @@ export default async function IndustryJobsPage({ params, searchParams }: Industr
             </div>
           )}
         </section>
-        <JobSubmissionForm industrySlug={industry.slug} />
+        {databaseSearchAvailable && <JobSubmissionForm industrySlug={industry.slug} />}
         <Link className="content-back" href="/jobs">← Browse all chemistry industries</Link>
       </main>
       <SiteFooter />

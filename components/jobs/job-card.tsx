@@ -43,6 +43,7 @@ export function JobCard({ job }: { job: ChemistryJob }) {
       )}
       <div className="job-card-footer">
         <div className="job-dates">
+          <span>Source: {job.source_name}</span>
           {job.application_deadline && (
             <span>Deadline: {new Date(`${job.application_deadline}T00:00:00`).toLocaleDateString("en", { dateStyle: "medium" })}</span>
           )}

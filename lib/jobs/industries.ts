@@ -94,7 +94,7 @@ export const relatedChemistryRoles = [
 ];
 
 const chemistrySearchTerms =
-  /\b(chem|chemist|chemistry|chemical|laboratory|laboratories|lab|analytical|formulation|quality control|quality assurance|qc analyst|production chemist|process chemist|water treatment|polymer|pharma|petroleum|food safety)\b/i;
+  /\b(chem|chemist|chemistry|chemical|laboratory|laboratories|lab|analytical|formulation|quality control|quality assurance|qc analyst|production chemist|process chemist|soap|detergent|surfactant|cosmetic|cosmetics|skincare|pharmaceutical|pharma|paint|coatings|water treatment|water quality|wastewater|food|beverage|brewery|petroleum|oil and gas|polymer|plastics|agrochemical|pesticide|fertilizer|gmp)\b/i;
 
 export function isChemistryCareerSearch(query: string): boolean {
   return chemistrySearchTerms.test(query);

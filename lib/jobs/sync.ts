@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { chemistryIndustries } from "./industries";
+import { chemistryIndustries, isChemistryCareerSearch } from "./industries";
 
 type AdzunaJob = {
   id?: string | number;
@@ -68,6 +68,17 @@ export type JobUpdateResult = {
   message: string;
 };
 
+export type AdzunaSearchJob = Omit<ChemistryJobRow, "status"> & {
+  id: string;
+  industry_name: string;
+};
+
+export type AdzunaSearchResult = {
+  status: "success" | "no_source_configured" | "failed";
+  jobs: AdzunaSearchJob[];
+  message: string;
+};
+
 function isChemistryRelated(job: AdzunaJob): boolean {
   const title = job.title ?? "";
   const description = job.description ?? "";
@@ -110,6 +121,7 @@ function convertAdzunaJob(
   fallbackSlug: string,
   discoveredAt: string,
   countryCode: string,
+  acceptChemistrySearchResult = false,
 ): ChemistryJobRow | null {
   const id = job.id === undefined ? "" : String(job.id);
   const title = job.title?.trim();
@@ -130,8 +142,7 @@ function convertAdzunaJob(
     !title ||
     !description ||
     !applicationUrl ||
-    !applicationUrl ||
-    !isChemistryRelated(job)
+    (!acceptChemistrySearchResult && !isChemistryRelated(job))
   ) {
     return null;
   }
@@ -162,11 +173,12 @@ async function fetchIndustryJobs(
   appKey: string,
   countryCode: string,
   searchTerms: string,
+  resultsPerPage = 50,
 ): Promise<AdzunaJob[]> {
   const url = new URL(`https://api.adzuna.com/v1/api/jobs/${countryCode}/search/1`);
   url.searchParams.set("app_id", appId);
   url.searchParams.set("app_key", appKey);
-  url.searchParams.set("results_per_page", "50");
+  url.searchParams.set("results_per_page", String(resultsPerPage));
   url.searchParams.set("what", searchTerms);
   url.searchParams.set("content-type", "application/json");
 
@@ -180,6 +192,74 @@ async function fetchIndustryJobs(
   }
   const result = (await response.json()) as AdzunaResponse;
   return Array.isArray(result.results) ? result.results : [];
+}
+
+function getFallbackIndustrySlug(query: string): string {
+  const normalizedQuery = query.toLowerCase();
+  return chemistryIndustries.find((industry) =>
+    industry.keywords.some((keyword) => normalizedQuery.includes(keyword.toLowerCase())),
+  )?.slug ?? "laboratory-services";
+}
+
+export async function searchAdzunaChemistryJobs(
+  query: string,
+): Promise<AdzunaSearchResult> {
+  const appId = process.env.ADZUNA_APP_ID;
+  const appKey = process.env.ADZUNA_APP_KEY;
+  const countryCode = process.env.ADZUNA_COUNTRY_CODE?.toLowerCase();
+  if (!appId || !appKey || !countryCode || !/^[a-z]{2}$/.test(countryCode)) {
+    return {
+      status: "no_source_configured",
+      jobs: [],
+      message: "No live job search ran. Configure Adzuna credentials and a supported ADZUNA_COUNTRY_CODE.",
+    };
+  }
+  if (!isChemistryCareerSearch(query)) {
+    return {
+      status: "success",
+      jobs: [],
+      message: "Search for a chemistry-related role to view live opportunities.",
+    };
+  }
+
+  try {
+    const results = await fetchIndustryJobs(appId, appKey, countryCode, query, 25);
+    const discoveredAt = new Date().toISOString();
+    const fallbackSlug = getFallbackIndustrySlug(query);
+    const jobsById = new Map<string, AdzunaSearchJob>();
+    for (const result of results) {
+      const job = convertAdzunaJob(
+        result,
+        fallbackSlug,
+        discoveredAt,
+        countryCode,
+        true,
+      );
+      if (!job) continue;
+
+      jobsById.set(job.source_job_id, {
+        ...job,
+        id: `adzuna:${job.source_job_id}`,
+        industry_name:
+          chemistryIndustries.find((industry) => industry.slug === job.industry_slug)?.name
+          ?? "Laboratory Services",
+      });
+    }
+
+    return {
+      status: "success",
+      jobs: [...jobsById.values()],
+      message: `Searched Adzuna for “${query}”.`,
+    };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown Adzuna error.";
+    console.error("Live Adzuna chemistry job search failed:", detail);
+    return {
+      status: "failed",
+      jobs: [],
+      message: "The live job provider could not be reached. Please try again later.",
+    };
+  }
 }
 
 async function writeLog(

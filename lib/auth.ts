@@ -3,6 +3,7 @@ import "server-only";
 import { isAuthSessionMissingError, type User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { getSupabaseCredentials } from "./supabase/env";
+import { isMissingSupabaseRpc } from "./supabase/errors";
 import { createReadOnlyServerClient } from "./supabase/server";
 
 export async function getCurrentUser(): Promise<User | null> {
@@ -29,6 +30,10 @@ export async function isPremiumUser(user: User | null): Promise<boolean> {
   const { data, error } = await supabase.rpc("current_user_has_premium_access");
 
   if (error) {
+    if (isMissingSupabaseRpc(error)) {
+      console.warn("Premium access RPC is unavailable; treating the account as Free until its database migration is applied.");
+      return false;
+    }
     throw new Error(`Unable to verify Premium membership: ${error.message}`);
   }
 
@@ -64,29 +69,29 @@ export async function requireActiveUser(
     "current_user_request_status",
   );
 
-  if (requestError) {
+  if (requestError && !isMissingSupabaseRpc(requestError)) {
     throw new Error(`Unable to verify your account request: ${requestError.message}`);
   }
 
-  if (requestStatus === "pending") {
+  if (requestError) {
+    console.warn("Chemist request-status RPC is unavailable; account access will still be checked.");
+  } else if (requestStatus === "pending") {
     redirect("/account?status=pending");
-  }
-
-  if (requestStatus === "rejected") {
+  } else if (requestStatus === "rejected") {
     redirect("/account?status=rejected");
   }
 
   const { data: status, error } = await supabase.rpc("current_user_access_status");
 
-  if (error) {
+  if (error && !isMissingSupabaseRpc(error)) {
     throw new Error(`Unable to verify account access: ${error.message}`);
   }
 
-  if (status === "suspended") {
+  if (error) {
+    console.warn("Account access-status RPC is unavailable; allowing the authenticated Free learning routes.");
+  } else if (status === "suspended") {
     redirect("/access-suspended");
-  }
-
-  if (status !== "active") {
+  } else if (status !== "active") {
     throw new Error("No chemist application is associated with this account.");
   }
 
