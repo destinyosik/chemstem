@@ -35,7 +35,7 @@ function buildAuthCallback(siteOrigin: string, destination: string): string {
 }
 
 function addRegistrationNotice(path: string): string {
-  const destination = new URL(path, "http://localhost");
+  const destination = new URL(path, "http://localhost3000");
   destination.searchParams.set("registered", "1");
   return `${destination.pathname}${destination.search}${destination.hash}`;
 }
