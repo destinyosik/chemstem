@@ -3,41 +3,21 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { chemistryIndustries, isChemistryCareerSearch } from "./industries";
 
-type AdzunaJob = {
+const SOURCE = "jooble";
+
+type JoobleJob = {
   id?: string | number;
   title?: string;
-  description?: string;
-  redirect_url?: string;
-  created?: string;
-  salary_min?: number;
-  salary_max?: number;
-  company?: { display_name?: string };
-  location?: { display_name?: string };
-  category?: { label?: string; tag?: string };
-  contract_time?: string;
-  contract_type?: string;
+  location?: string;
+  snippet?: string;
+  salary?: string;
+  type?: string;
+  link?: string;
+  company?: string;
+  updated?: string;
 };
 
-type AdzunaResponse = { results?: AdzunaJob[] };
-
-const adzunaCurrencies: Record<string, string> = {
-  au: "AUD",
-  at: "EUR",
-  br: "BRL",
-  ca: "CAD",
-  de: "EUR",
-  es: "EUR",
-  fr: "EUR",
-  gb: "GBP",
-  in: "INR",
-  it: "EUR",
-  nl: "EUR",
-  nz: "NZD",
-  pl: "PLN",
-  sg: "SGD",
-  us: "USD",
-  za: "ZAR",
-};
+type JoobleResponse = { jobs?: JoobleJob[] };
 
 type ChemistryJobRow = {
   industry_slug: string;
@@ -79,16 +59,22 @@ export type AdzunaSearchResult = {
   message: string;
 };
 
-function isChemistryRelated(job: AdzunaJob): boolean {
-  const title = job.title ?? "";
-  const description = job.description ?? "";
+function cleanText(value: string | undefined): string {
+  return (value ?? "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isChemistryRelated(job: JoobleJob): boolean {
   return /\b(chemistry|chemist|chemical|laboratory|laboratories|lab technician|analytical|formulation|pharmaceutical|polymer|quality control|quality assurance|water treatment|petroleum|agrochemical|food scientist|materials scientist)\b/i.test(
-    `${title} ${description}`,
+    `${job.title ?? ""} ${job.snippet ?? ""}`,
   );
 }
 
-function categorize(job: AdzunaJob, fallbackSlug: string): string {
-  const text = `${job.title ?? ""} ${job.description ?? ""} ${job.category?.label ?? ""} ${job.category?.tag ?? ""}`.toLowerCase();
+function categorize(job: JoobleJob, fallbackSlug: string): string {
+  const text = `${job.title ?? ""} ${job.snippet ?? ""} ${job.type ?? ""}`.toLowerCase();
   const scores = chemistryIndustries.map((industry) => ({
     slug: industry.slug,
     score: industry.keywords.reduce(
@@ -100,35 +86,19 @@ function categorize(job: AdzunaJob, fallbackSlug: string): string {
   return scores[0]?.score ? scores[0].slug : fallbackSlug;
 }
 
-function salaryLabel(job: AdzunaJob, countryCode: string): string | null {
-  const min = job.salary_min;
-  const max = job.salary_max;
-  const currency = adzunaCurrencies[countryCode];
-  if ((!Number.isFinite(min) && !Number.isFinite(max)) || !currency) return null;
-  const formatter = new Intl.NumberFormat("en", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  });
-  if (typeof min === "number" && typeof max === "number") {
-    return `${formatter.format(min)}–${formatter.format(max)} per year`;
-  }
-  return `${formatter.format((min ?? max) as number)} per year`;
-}
-
-function convertAdzunaJob(
-  job: AdzunaJob,
+function convertJoobleJob(
+  job: JoobleJob,
   fallbackSlug: string,
   discoveredAt: string,
-  countryCode: string,
-  acceptChemistrySearchResult = false,
+  acceptAnySearchResult = false,
 ): ChemistryJobRow | null {
-  const id = job.id === undefined ? "" : String(job.id);
-  const title = job.title?.trim();
+  const id = job.id !== undefined ? String(job.id) : job.link ?? "";
+  const title = cleanText(job.title);
+  const description = cleanText(job.snippet);
   let applicationUrl: string | null = null;
-  if (job.redirect_url) {
+  if (job.link) {
     try {
-      const url = new URL(job.redirect_url);
+      const url = new URL(job.link);
       if ((url.protocol === "https:" || url.protocol === "http:") && !url.username && !url.password) {
         applicationUrl = url.toString();
       }
@@ -136,31 +106,23 @@ function convertAdzunaJob(
       applicationUrl = null;
     }
   }
-  const description = job.description?.trim();
-  if (
-    !id ||
-    !title ||
-    !description ||
-    !applicationUrl ||
-    (!acceptChemistrySearchResult && !isChemistryRelated(job))
-  ) {
-    return null;
-  }
+  if (!id || !title || !description || !applicationUrl) return null;
+  if (!acceptAnySearchResult && !isChemistryRelated(job)) return null;
 
   return {
     industry_slug: categorize(job, fallbackSlug),
     title: title.slice(0, 180),
-    company_name: (job.company?.display_name || "Not disclosed").slice(0, 180),
-    location: (job.location?.display_name || "Not disclosed").slice(0, 180),
+    company_name: (cleanText(job.company) || "Not disclosed").slice(0, 180),
+    location: (cleanText(job.location) || "Nigeria").slice(0, 180),
     description: description.slice(0, 5000),
     qualifications: "",
     experience: "",
     technical_skills: [],
     application_deadline: null,
-    salary_text: salaryLabel(job, countryCode),
+    salary_text: cleanText(job.salary) || null,
     application_url: applicationUrl,
-    source_name: "adzuna",
-    source_job_id: id,
+    source_name: SOURCE,
+    source_job_id: id.slice(0, 300),
     source_url: applicationUrl,
     discovered_at: discoveredAt,
     expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -168,50 +130,37 @@ function convertAdzunaJob(
   };
 }
 
-async function fetchIndustryJobs(
-  appId: string,
-  appKey: string,
-  countryCode: string,
-  searchTerms: string,
-  resultsPerPage = 50,
-): Promise<AdzunaJob[]> {
-  const url = new URL(`https://api.adzuna.com/v1/api/jobs/${countryCode}/search/1`);
-  url.searchParams.set("app_id", appId);
-  url.searchParams.set("app_key", appKey);
-  url.searchParams.set("results_per_page", String(resultsPerPage));
-  url.searchParams.set("what", searchTerms);
-  url.searchParams.set("content-type", "application/json");
-
-  const response = await fetch(url, {
-    headers: { Accept: "application/json" },
+async function fetchIndustryJobs(apiKey: string, searchTerms: string): Promise<JoobleJob[]> {
+  const response = await fetch(`https://jooble.org/api/${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ keywords: searchTerms, location: "Nigeria", page: "1" }),
     cache: "no-store",
     signal: AbortSignal.timeout(15000),
   });
   if (!response.ok) {
-    throw new Error(`Adzuna returned HTTP ${response.status} for a chemistry-industry query.`);
+    throw new Error(`Jooble returned HTTP ${response.status} for a chemistry-industry query.`);
   }
-  const result = (await response.json()) as AdzunaResponse;
-  return Array.isArray(result.results) ? result.results : [];
+  const result = (await response.json()) as JoobleResponse;
+  return Array.isArray(result.jobs) ? result.jobs : [];
 }
 
 function getFallbackIndustrySlug(query: string): string {
   const normalizedQuery = query.toLowerCase();
-  return chemistryIndustries.find((industry) =>
-    industry.keywords.some((keyword) => normalizedQuery.includes(keyword.toLowerCase())),
-  )?.slug ?? "laboratory-services";
+  return (
+    chemistryIndustries.find((industry) =>
+      industry.keywords.some((keyword) => normalizedQuery.includes(keyword.toLowerCase())),
+    )?.slug ?? "laboratory-services"
+  );
 }
 
-export async function searchAdzunaChemistryJobs(
-  query: string,
-): Promise<AdzunaSearchResult> {
-  const appId = process.env.ADZUNA_APP_ID;
-  const appKey = process.env.ADZUNA_APP_KEY;
-  const countryCode = process.env.ADZUNA_COUNTRY_CODE?.toLowerCase();
-  if (!appId || !appKey || !countryCode || !/^[a-z]{2}$/.test(countryCode)) {
+export async function searchAdzunaChemistryJobs(query: string): Promise<AdzunaSearchResult> {
+  const apiKey = process.env.JOOBLE_API_KEY;
+  if (!apiKey) {
     return {
       status: "no_source_configured",
       jobs: [],
-      message: "No live job search ran. Configure Adzuna credentials and a supported ADZUNA_COUNTRY_CODE.",
+      message: "No live job search ran. Configure JOOBLE_API_KEY.",
     };
   }
   if (!isChemistryCareerSearch(query)) {
@@ -223,37 +172,31 @@ export async function searchAdzunaChemistryJobs(
   }
 
   try {
-    const results = await fetchIndustryJobs(appId, appKey, countryCode, query, 25);
+    const results = await fetchIndustryJobs(apiKey, query);
     const discoveredAt = new Date().toISOString();
     const fallbackSlug = getFallbackIndustrySlug(query);
     const jobsById = new Map<string, AdzunaSearchJob>();
     for (const result of results) {
-      const job = convertAdzunaJob(
-        result,
-        fallbackSlug,
-        discoveredAt,
-        countryCode,
-        true,
-      );
+      const job = convertJoobleJob(result, fallbackSlug, discoveredAt, true);
       if (!job) continue;
-
       jobsById.set(job.source_job_id, {
         ...job,
-        id: `adzuna:${job.source_job_id}`,
+        id: `${SOURCE}:${job.source_job_id}`,
         industry_name:
-          chemistryIndustries.find((industry) => industry.slug === job.industry_slug)?.name
-          ?? "Laboratory Services",
+          chemistryIndustries.find((industry) => industry.slug === job.industry_slug)?.name ??
+          "Laboratory Services",
       });
     }
-
     return {
       status: "success",
       jobs: [...jobsById.values()],
-      message: `Searched Adzuna for “${query}”.`,
+      message: `Searched Nigerian jobs for “${query}”.`,
     };
   } catch (error) {
-    const detail = error instanceof Error ? error.message : "Unknown Adzuna error.";
-    console.error("Live Adzuna chemistry job search failed:", detail);
+    console.error(
+      "Live Jooble chemistry job search failed:",
+      error instanceof Error ? error.message : "Unknown error.",
+    );
     return {
       status: "failed",
       jobs: [],
@@ -268,7 +211,7 @@ async function writeLog(
   result: JobUpdateResult,
 ): Promise<void> {
   const { error } = await supabase.from("chemistry_job_update_logs").insert({
-    source_name: "adzuna",
+    source_name: SOURCE,
     status: result.status,
     triggered_by: triggeredBy,
     jobs_found: result.jobsFound,
@@ -286,17 +229,15 @@ export async function updateChemistryJobs(
   triggeredBy: "cron" | "admin",
 ): Promise<JobUpdateResult> {
   const supabase = createSupabaseAdminClient();
-  const appId = process.env.ADZUNA_APP_ID;
-  const appKey = process.env.ADZUNA_APP_KEY;
-  const countryCode = process.env.ADZUNA_COUNTRY_CODE?.toLowerCase();
-  if (!appId || !appKey || !countryCode || !/^[a-z]{2}$/.test(countryCode)) {
+  const apiKey = process.env.JOOBLE_API_KEY;
+  if (!apiKey) {
     const result: JobUpdateResult = {
       status: "no_source_configured",
       jobsFound: 0,
       jobsAdded: 0,
       jobsUpdated: 0,
       jobsExpired: 0,
-      message: "No job-source search ran: configure Adzuna credentials and a valid two-letter ADZUNA_COUNTRY_CODE.",
+      message: "No job-source search ran: configure JOOBLE_API_KEY.",
     };
     await writeLog(supabase, triggeredBy, result);
     return result;
@@ -304,22 +245,21 @@ export async function updateChemistryJobs(
 
   try {
     const discoveredAt = new Date().toISOString();
-    const fetched: Array<{ job: AdzunaJob; fallbackSlug: string }> = [];
-    for (let offset = 0; offset < chemistryIndustries.length; offset += 4) {
-      const batch = chemistryIndustries.slice(offset, offset + 4);
+    const fetched: Array<{ job: JoobleJob; fallbackSlug: string }> = [];
+    for (let offset = 0; offset < chemistryIndustries.length; offset += 2) {
+      const batch = chemistryIndustries.slice(offset, offset + 2);
       const results = await Promise.all(
-        batch.map((industry) =>
-          fetchIndustryJobs(appId, appKey, countryCode, industry.searchTerms),
-        ),
+        batch.map((industry) => fetchIndustryJobs(apiKey, industry.searchTerms)),
       );
       for (let index = 0; index < batch.length; index += 1) {
         fetched.push(...results[index].map((job) => ({ job, fallbackSlug: batch[index].slug })));
       }
     }
 
-    const unique = new Map<string, { job: AdzunaJob; fallbackSlug: string }>();
+    const unique = new Map<string, { job: JoobleJob; fallbackSlug: string }>();
     for (const entry of fetched) {
-      if (entry.job.id !== undefined) unique.set(String(entry.job.id), entry);
+      const id = entry.job.id !== undefined ? String(entry.job.id) : entry.job.link;
+      if (id) unique.set(id.slice(0, 300), entry);
     }
 
     const sourceIds = [...unique.keys()];
@@ -329,7 +269,7 @@ export async function updateChemistryJobs(
       const { data, error } = await supabase
         .from("chemistry_jobs")
         .select("source_job_id,discovered_at,status")
-        .eq("source_name", "adzuna")
+        .eq("source_name", SOURCE)
         .in("source_job_id", batch);
       if (error) throw new Error(`Unable to check imported job duplicates: ${error.message}`);
       for (const row of data ?? []) {
@@ -341,7 +281,7 @@ export async function updateChemistryJobs(
 
     const rows = [...unique.entries()]
       .map(([id, entry]) => {
-        const row = convertAdzunaJob(entry.job, entry.fallbackSlug, discoveredAt, countryCode);
+        const row = convertJoobleJob(entry.job, entry.fallbackSlug, discoveredAt);
         const previous = existing.get(id);
         if (!row || previous?.status === "rejected" || previous?.status === "closed") return null;
         if (previous) row.discovered_at = previous.discovered_at;
@@ -368,7 +308,7 @@ export async function updateChemistryJobs(
     const { data: expiredRows, error: expirationError } = await supabase
       .from("chemistry_jobs")
       .update({ status: "expired", updated_at: new Date().toISOString() })
-      .eq("source_name", "adzuna")
+      .eq("source_name", SOURCE)
       .eq("status", "approved")
       .lt("expires_at", new Date().toISOString())
       .select("id");
@@ -380,7 +320,7 @@ export async function updateChemistryJobs(
       jobsAdded,
       jobsUpdated,
       jobsExpired: expiredRows?.length ?? 0,
-      message: `Queried Adzuna for ${chemistryIndustries.length} chemistry industries; retained original discovery dates for duplicates.`,
+      message: `Queried Jooble for ${chemistryIndustries.length} chemistry industries in Nigeria; retained original discovery dates for duplicates.`,
     };
     await writeLog(supabase, triggeredBy, result);
     return result;
