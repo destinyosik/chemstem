@@ -1,7 +1,7 @@
 update public.chemist_applications
 set request_status = 'approved',
     access_status = 'active'
-where request_status = 'pending';
+where request_status = 'approved';
 
 create or replace function public.handle_new_chemist_user()
 returns trigger
