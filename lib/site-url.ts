@@ -1,7 +1,6 @@
 import "server-only";
 
-const PRODUCTION_SITE_URL = "https://chemstem.vercel.app";
-
+const PRODUCTION_SITE_URL = "https://chemstems.vercel.app";
 export function getSiteOrigin(): string {
   if (process.env.VERCEL_ENV === "production") return PRODUCTION_SITE_URL;
 
